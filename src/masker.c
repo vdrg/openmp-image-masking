@@ -37,7 +37,7 @@ void load_mask(char const *path, Mask *mask) {
   fclose(file);
 }
 
-void apply_mask(Image *image, Image *result, Mask *mask) {
+void apply_mask(int threads, Image *image, Image *result, Mask *mask) {
   /*
    * This variable will store the current sum for the mask.
    * Notice that this variable is necessary as the sum will
@@ -49,7 +49,9 @@ void apply_mask(Image *image, Image *result, Mask *mask) {
   int half = mask->size / 2;
   int size_squared = mask->size * mask->size;
   // Iterate through all the pixels.
-  #pragma omp parallel private(current)
+  omp_set_dynamic(0);
+  omp_set_num_threads(threads);
+  #pragma omp parallel private(current) num_threads(threads)
   {
     current = calloc(3, sizeof(double));
     #pragma omp for collapse(2)

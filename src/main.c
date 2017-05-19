@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <math.h>
 #include <getopt.h>
@@ -8,7 +9,28 @@
 #include "../imagelib/imagelib.h"
 #include "masker.h"
 
-static int parallel_flag;
+static int verbose_flag;
+static int no_output_flag;
+
+void usage() {
+  puts("Usage: masker source destination");
+  puts("Options:");
+  puts("  -n, --niter: Number of iterations. Default: 10");
+  puts("  -m, --mask: Path of the mask file.");
+  puts("  -s, --masksize: Size of the default mask (blur). If a mask file is specified, this option is ignored. Default: 3");
+  puts("  -t, --threads: Number of threads.");
+  puts("    , --no-output: Don't write the output image.");
+}
+
+void vlog(const char *format, ...) {
+  if (verbose_flag) {
+    va_list args;
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+  }
+    
+}
 
 int main(int argc, char *argv[]) {
 
@@ -18,22 +40,24 @@ int main(int argc, char *argv[]) {
   int niter = 10;
   char *mask_path = NULL; 
   int mask_size = 3;
+  int threads = 1;
 
   while (1) {
       static struct option long_options[] =
         {
-          {"parallel", no_argument,       &parallel_flag, 1},
-          {"serial",   no_argument,       &parallel_flag, 0},
+          {"verbose", no_argument, &verbose_flag, 1},
+          {"no-output", no_argument, &no_output_flag, 1},
           {"help",  required_argument, 0, 'h'},
           {"niter",  required_argument, 0, 'n'},
           {"mask",  required_argument, 0, 'm'},
           {"masksize",    required_argument, 0, 's'},
+          {"threads",    required_argument, 0, 't'},
           {0, 0, 0, 0}
         };
       /* getopt_long stores the option index here. */
       int option_index = 0;
 
-      c = getopt_long (argc, argv, "hn:m:s:",
+      c = getopt_long (argc, argv, "hn:m:s:t:",
                        long_options, &option_index);
 
       /* Detect the end of the options. */
@@ -45,18 +69,14 @@ int main(int argc, char *argv[]) {
           /* If this option set a flag, do nothing else now. */
           if (long_options[option_index].flag != 0)
             break;
-          printf ("option %s", long_options[option_index].name);
+          vlog("option %s", long_options[option_index].name);
           if (optarg)
-            printf (" with arg %s", optarg);
-          printf ("\n");
+            vlog(" with arg %s", optarg);
+          vlog("\n");
           break;
 
         case 'h':
-          puts("Usage: masker source destination");
-          puts("Options:");
-          puts("  -n, --niter: Number of iterations. Default: 10");
-          puts("  -m, --mask: Path of the mask file.");
-          puts("  -s, --masksize: Size of the default mask (blur). If a mask file is specified, this option is ignored. Default: 3");
+	  usage();
           exit(0);
 
         case 'n':
@@ -71,6 +91,10 @@ int main(int argc, char *argv[]) {
           mask_size = atoi(optarg);
           break;
 
+	case 't':
+	  threads = atoi(optarg);
+	  break;
+
         case '?':
           /* getopt_long already printed an error message. */
           break;
@@ -82,27 +106,29 @@ int main(int argc, char *argv[]) {
 
 
   char *src, *dest;
-  /* Print any remaining command line arguments (not options). */
   if (optind < argc - 1) {
     src = argv[optind];
     dest = argv[optind + 1];
+  } else if (no_output_flag && optind < argc) {
+    src = argv[optind];
   } else {
     printf("You have to specify a source image and a destination.\n");
+    usage();
     exit(1);
   }
 
   // Load the mask that will be applied.
   Mask *mask = calloc(1, sizeof(Mask));
   if (mask_path) {
-    printf("Loading mask file in %s\n", mask_path);
+    vlog("Loading mask file in %s\n", mask_path);
     load_mask(mask_path, mask);
   } else {
-    printf("Creating default mask of size %d\n", mask_size);
+    vlog("Creating default mask of size %d\n", mask_size);
     init_mask(mask, mask_size, 1);
   }
 
   // Load image.
-  printf("Loading source image from %s\n", src);
+  vlog("Loading source image from %s\n", src);
   Image *image = calloc(1, sizeof(Image));
   load_image(src, image);
 
@@ -113,22 +139,25 @@ int main(int argc, char *argv[]) {
 
 
   // Iterate 'niter' times.
-  printf("Applying mask with %d iterations\n", niter);
+  vlog("Applying mask with %d iterations\n", niter);
   double start = omp_get_wtime( );
   for (int i = 0; i < niter; i++) {
 
     // Apply mask to image, the result will be in 'temp'.
-    apply_mask(image, temp, mask);
+    apply_mask(threads, image, temp, mask);
 
     // Copy temp in image for the next iteration.
     cp_image(image, temp);
   }
   double end = omp_get_wtime( );  
-  printf("Masking took %lf seconds!\n", end - start);
+  vlog("Time:\n");
+  printf("%lf\n", end - start);
 
   // Write the final image.
-  printf("Writing resulting image to %s\n", dest);
-  write_image(dest, image);
+  if (!no_output_flag) {
+    vlog("Writing resulting image to %s\n", dest);
+    write_image(dest, image);
+  }
 
   // Let it go, let it goooooo
   free_mask(mask);

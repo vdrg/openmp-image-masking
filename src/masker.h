@@ -8,5 +8,5 @@ typedef struct {
 
 void init_mask(Mask *mask, int size, double value);
 void load_mask(char const *path, Mask *mask);
-void apply_mask(Image *image, Image *result, Mask *mask);
+void apply_mask(int threads, Image *image, Image *result, Mask *mask);
 void free_mask(Mask *mask);
