@@ -13,12 +13,14 @@ static int verbose_flag;
 static int no_output_flag;
 
 void usage() {
-  puts("Usage: masker source destination");
+  puts("Usage: masker source.png result.png");
   puts("Options:");
+  puts("  -h, --help: Print this message.");
   puts("  -n, --niter: Number of iterations. Default: 10");
   puts("  -m, --mask: Path of the mask file.");
   puts("  -s, --masksize: Size of the default mask (blur). If a mask file is specified, this option is ignored. Default: 3");
   puts("  -t, --threads: Number of threads.");
+  puts("    , --verbose: Log detailed information.");
   puts("    , --no-output: Don't write the output image.");
 }
 
